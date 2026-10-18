@@ -23,7 +23,9 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
       - name: Compile ESP8266 NodeMCU
-        run: pio run -e nodemcuv2
+        run: |
+          pio run -e nodemcuv2
+          test -s .pio/build/nodemcuv2/firmware.bin
       - name: Validate firmware binary
         run: |
           test -s .pio/build/nodemcuv2/firmware.bin
