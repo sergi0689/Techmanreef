@@ -358,7 +358,7 @@ label{display:block;margin:14px 0 7px}.selector{display:grid;grid-template-colum
 .progress{background:#304358;border-radius:10px;height:11px;overflow:hidden;margin:15px 0 7px}.progress>div{height:100%;background:#39d7b0;width:0}
 .note{color:#aabac9;font-size:12px;line-height:1.5}.tabs button{background:#34495c;color:white}.tabs button.active{background:#39d7b0;color:#09201d}
 </style></head><body><main>
-<div class="tag">CONTROL INALÁMBRICO · ESP8266</div><p><a style="color:#7cf0d0" href="/evergrow">☀ Abrir Evergrow B</a></p><h1>JEBAO WiFi Controller</h1><div class="muted">Buscador de resonancia · ON/OFF</div>
+<div class="tag">CONTROL INALÁMBRICO · ESP8266</div><p><a style="color:#7cf0d0" href="/evergrow">☀ Abrir Evergrow B</a></p><h1>Techman Reef · JEBAO WiFi Controller</h1><div class="muted">Buscador de resonancia · ON/OFF</div>
 <div class="card"><h3>Modo RF capturado</h3>
 <div class="selector" style="grid-template-columns:repeat(5,1fr)">
 <button class="modebtn" id="rf1" onclick="chooseMode(1)">1</button>
