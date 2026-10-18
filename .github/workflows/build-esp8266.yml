@@ -1,0 +1,32 @@
+name: Techman Reef - ESP8266 firmware
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'platformio.ini'
+      - '.github/workflows/build-esp8266.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Compile ESP8266 NodeMCU
+        run: pio run -e nodemcuv2
+      - name: Publish binary artifact (private)
+        uses: actions/upload-artifact@v4
+        with:
+          name: techmanreef-esp8266-firmware
+          path: .pio/build/nodemcuv2/firmware.bin
+          retention-days: 30
