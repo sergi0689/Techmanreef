@@ -1,34 +1,11 @@
-# Techman Reef
+# Techmanreef — ESP8266
 
-Proyecto privado de desarrollo del controlador de acuarios Techman Reef (ESP32 + radio nRF24L01).
+**ESTADO: migración incompleta. No flashear los binarios generados actualmente.**
 
-## Estado actual
+Repositorio adaptado al entorno NodeMCU ESP8266 (`nodemcuv2`). Incluye `platformio.ini`, cabecera de configuración sin secretos y workflow `build-esp8266.yml`.
 
-**Solo infraestructura inicial de compilación**. Todavía NO contiene el control real de Evergrow ni de Jebao, la interfaz de usuario ni el sistema de actualizaciones OTA.
+**Pendiente:** el archivo `src/main.cpp` en GitHub sigue siendo el programa de prueba antiguo: la operación de subida del código real fue bloqueada. Para añadir el código real, utilizar el ZIP preparado de Techmanreef_ESP8266, sin publicar credenciales.
 
-**NO grabar el firmware generado en un controlador en funcionamiento.** La compilación actual es únicamente un programa de prueba para verificar GitHub Actions; no transmite señales de radio ni controla bombas o luces.
+El firmware original permite carga OTA *local* desde `/update`; no implementa descarga OTA desatendida desde GitHub. El repositorio es privado y los artefactos de GitHub Actions no son URLs de firmware descargables anónimamente por el ESP8266.
 
-## Compilación automática
-
-El archivo `.github/workflows/build-esp32.yml` ejecuta PlatformIO en GitHub Actions cuando hay cambios en `main` o cuando se inicia manualmente.
-
-El resultado se guarda como artefacto descargable `Techmanreef-ESP32-BASE-NO-FLASH`. **No se publica a clientes ni se envía a dispositivos.**
-
-## Configuración de prueba
-
-- Entorno: PlatformIO + framework Arduino
-- Placa temporal: `esp32dev` (ESP32 clásico genérico)
-- Configuración: `platformio.ini`
-- Firmware mínimo: `src/main.cpp`
-
-La placa del producto comercial aún se debe concretar; si se elige ESP32-S3, habrá que cambiar el entorno antes de migrar el firmware.
-
-## Próximas etapas
-
-1. Seleccionar placa definitiva y documentar el cableado nRF24L01.
-2. Incorporar el firmware existente y migrar de ESP8266 a ESP32 sin modificar el comportamiento comprobado de Jebao.
-3. Añadir interfaz Reef responsive y programación Evergrow.
-4. Implementar OTA segura con verificación, doble partición y recuperación.
-5. Preparar proceso de pruebas y lanzamiento de actualizaciones por fases.
-
-No almacenar contraseñas Wi-Fi, claves API ni credenciales en el repositorio.
+No subir `include/techman_config_local.h`. No exponer HTTP ni el puerto de actualización a Internet.
