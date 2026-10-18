@@ -93,26 +93,54 @@ static void tmRunCheck(bool install){
   if(ESP.getFreeSketchSpace()<420000){tmState="sin_espacio";return;}
   String base=TECHMAN_OTA_BASE_URL;
   if(!base.startsWith("https://")){tmState="sin_url";return;}
-  BearSSL::X509List roots(tmRoots);BearSSL::WiFiClientSecure c;c.setTrustAnchors(&roots);
-  c.setBufferSizes(1024,1024);
-  c.setTimeout(12000);
-  HTTPClient http;http.setTimeout(12000);
-  if(!http.begin(c,base+"/manifest.txt")){tmState="conexion_manifest";tmDiagnostic="http.begin fallo";Serial.println("[TECHMAN OTA] "+tmDiagnostic);return;}
-  int status=http.GET();tmHttpCode=status;
-  String ver=status==200?http.getString():"";
-  String error=status<0?http.errorToString(status):"";
-  char tlsDetail[150]={0};
-  int sslCode=c.getLastSSLError(tlsDetail,sizeof(tlsDetail));
-  http.end();ver.trim();
-  tmDiagnostic="HTTP="+String(status)+" ssl="+String(sslCode)+" "+String(tlsDetail)+" httpErr="+error+" length="+String(ver.length());
-  Serial.println("[OTA] "+tmDiagnostic);
-  if(!tmIsVersion(ver)){tmState="manifest_invalido_http_"+String(status);return;}
+  // Mantener la conexion TLS del manifiesto en su propio ambito.
+  // El cliente HTTPS y su memoria DEBEN liberarse ANTES de iniciar otra conexion.
+  String ver;
+  {
+    BearSSL::X509List roots(tmRoots);
+    BearSSL::WiFiClientSecure c;
+    c.setTrustAnchors(&roots);
+    c.setBufferSizes(1024,1024);
+    c.setTimeout(12000);
+    HTTPClient http;
+    http.setTimeout(12000);
+    if(!http.begin(c,base+"/manifest.txt")) {
+      tmState="conexion_manifest";
+      tmDiagnostic="http.begin fallo";
+      Serial.println("[TECHMAN OTA] "+tmDiagnostic);
+      return;
+    }
+    const int status=http.GET();
+    tmHttpCode=status;
+    if(status==200)ver=http.getString();
+    const String error=status<0?http.errorToString(status):"";
+    char tlsDetail[150]={0};
+    const int sslCode=c.getLastSSLError(tlsDetail,sizeof(tlsDetail));
+    http.end();
+    tmDiagnostic="HTTP="+String(status)+" ssl="+String(sslCode)+" "+String(tlsDetail)+" httpErr="+error+" length="+String(ver.length());
+    Serial.println("[TECHMAN OTA] "+tmDiagnostic);
+  }
+  // Aqui HTTPClient, BearSSL::WiFiClientSecure y certificado ya han sido destruidos.
+  ver.trim();
+  Serial.printf("[TECHMAN OTA] Heap despues manifest=%u maxBlock=%u frag=%u%%\n",ESP.getFreeHeap(),ESP.getMaxFreeBlockSize(),ESP.getHeapFragmentation());
+  if(!tmIsVersion(ver)){tmState="manifest_invalido_http_"+String(tmHttpCode);return;}
   if(ver==String(TECHMAN_FW_VERSION)){tmAvailable="";tmState="actualizado";return;}
   tmAvailable=ver;
   if(!install){tmState="disponible";return;}
-  tmState="instalando";tmBusy=true;
-  BearSSL::X509List fwRoots(tmRoots);BearSSL::WiFiClientSecure fw;fw.setTrustAnchors(&fwRoots);
+  // Evitar OOM conocido antes de crear el segundo cliente TLS.
+  if(ESP.getMaxFreeBlockSize()<16000){
+    tmState="ram_insuficiente_ota";
+    Serial.println("[TECHMAN OTA] Instalacion cancelada: RAM contigua insuficiente");
+    return;
+  }
+  tmState="instalando";
+  tmBusy=true;
+  Serial.printf("[TECHMAN OTA] Iniciando firmware: heap=%u maxBlock=%u\n",ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
+  BearSSL::X509List fwRoots(tmRoots);
+  BearSSL::WiFiClientSecure fw;
+  fw.setTrustAnchors(&fwRoots);
   fw.setBufferSizes(1024,1024);
+  fw.setTimeout(20000);
   ESPhttpUpdate.rebootOnUpdate(true);
   t_httpUpdate_return rc=ESPhttpUpdate.update(fw,base+"/firmware.bin");
   tmBusy=false;
