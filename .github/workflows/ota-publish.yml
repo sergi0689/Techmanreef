@@ -28,9 +28,10 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
       - name: Build ESP8266
-        env:
-          PLATFORMIO_BUILD_FLAGS: '-DTECHMAN_FW_VERSION="${{ github.sha }}" -DTECHMAN_OTA_BASE_URL="https://raw.githubusercontent.com/sergi0689/Techmanreef/ota"'
-        run: pio run -e nodemcuv2
+        run: |
+          VERSION="${GITHUB_SHA:0:12}"
+          export PLATFORMIO_BUILD_FLAGS="-DTECHMAN_FW_VERSION=\\\"$VERSION\\\" -DTECHMAN_OTA_BASE_URL=\\\"https://raw.githubusercontent.com/sergi0689/Techmanreef/ota\\\""
+          pio run -e nodemcuv2
       - name: Publish firmware and manifest to ota branch
         env:
           GH_TOKEN: ${{ github.token }}
