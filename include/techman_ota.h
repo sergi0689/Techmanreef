@@ -1,6 +1,7 @@
 #pragma once
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
+#include <Updater.h>
 #include <WiFiClientSecureBearSSL.h>
 #if __has_include("techman_version.h")
 #include "techman_version.h"
@@ -148,25 +149,67 @@ static void tmRunCheck(bool install){
   fw.setTrustAnchors(&fwRoots);
   fw.setBufferSizes(1024,1024);
   fw.setTimeout(20000);
-  ESPhttpUpdate.rebootOnUpdate(true);
-  ESPhttpUpdate.closeConnectionsOnUpdate(false);
-  ESPhttpUpdate.setClientTimeout(30000);
-  ESPhttpUpdate.onStart([](){Serial.println("[TECHMAN OTA] Flash iniciada");});
-  ESPhttpUpdate.onProgress([](int done,int total){
-    static int last=-1;
-    int percent=total>0?(100*done/total):0;
-    if(percent/10!=last){last=percent/10;Serial.printf("[TECHMAN OTA] Descarga %d/%d bytes (%d%%)\\n",done,total,percent);}
-  });
-  ESPhttpUpdate.onError([](int err){
-    Serial.printf("[TECHMAN OTA] Error descargando: %d (%s) heap=%u bloque=%u\\n",
-      err,ESPhttpUpdate.getLastErrorString().c_str(),ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
-  });
-  t_httpUpdate_return rc=ESPhttpUpdate.update(fw,base+"/firmware.bin");
-  Serial.printf("[TECHMAN OTA] Resultado OTA=%d error=%d detalle=%s\\n",
-    (int)rc,ESPhttpUpdate.getLastError(),ESPhttpUpdate.getLastErrorString().c_str());
+  // Descargar por HTTPClient con lectura de cabecera explicitamente comprobada.
+  // ESPhttpUpdate utiliza peekBytes(); con algunos servidores HTTPS este método
+  // devuelve -106 al no disponer todavía de datos en el buffer BearSSL.
+  HTTPClient fwHttp;
+  fwHttp.useHTTP10(true);
+  fwHttp.setTimeout(30000);
+  fwHttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  int fwStatus=-1;
+  if(fwHttp.begin(fw,base+"/firmware.bin")) fwStatus=fwHttp.GET();
+  Serial.printf("[TECHMAN OTA] Firmware HTTP=%d size=%d heap=%u bloque=%u\\n",
+       fwStatus,fwHttp.getSize(),ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
+  if(fwStatus!=200 || fwHttp.getSize()<100000){
+    tmState="firmware_http_"+String(fwStatus);
+    fwHttp.end();tmBusy=false;return;
+  }
+  const size_t length=(size_t)fwHttp.getSize();
+  WiFiClient *stream=fwHttp.getStreamPtr();
+  uint8_t magic[4]={0};
+  size_t got=stream->readBytes((char*)magic,4);
+  Serial.printf("[TECHMAN OTA] Cabecera: recibidos=%u hex=%02X %02X %02X %02X\\n",
+       (unsigned)got,magic[0],magic[1],magic[2],magic[3]);
+  if(got!=4 || magic[0]!=0xE9){
+    tmState="cabecera_no_valida";fwHttp.end();tmBusy=false;return;
+  }
+  if(!Update.begin(length,U_FLASH)){
+    tmState="flash_begin_"+String(Update.getError());fwHttp.end();tmBusy=false;return;
+  }
+  if(Update.write(magic,4)!=4){
+    tmState="flash_cabecera_"+String(Update.getError());Update.abort();fwHttp.end();tmBusy=false;return;
+  }
+  size_t total=4;
+  uint8_t buf[512];
+  uint32_t lastData=millis();
+  int lastProgress=-1;
+  while(total<length){
+    const size_t available=stream->available();
+    if(available){
+      size_t batch=min((size_t)sizeof(buf),min(available,length-total));
+      int n=stream->read(buf,batch);
+      if(n>0){
+        if(Update.write(buf,(size_t)n)!=(size_t)n)break;
+        total+=(size_t)n;lastData=millis();
+        int pct=(int)(total*100UL/length);
+        if(pct/10!=lastProgress){lastProgress=pct/10;Serial.printf("[TECHMAN OTA] %d%% (%u/%u)\\n",pct,(unsigned)total,(unsigned)length);}
+      }
+    } else if(millis()-lastData>30000UL || !stream->connected()){
+      break;
+    }
+    delay(1);
+  }
+  Serial.printf("[TECHMAN OTA] Transferencia %u/%u bytes error=%u\\n",(unsigned)total,(unsigned)length,Update.getError());
+  if(total==length && Update.end(true)){
+    fwHttp.end();
+    tmState="instalado_reiniciando";
+    Serial.println("[TECHMAN OTA] Firmware validado, reiniciando");
+    Serial.flush();ESP.restart();return;
+  }
+  tmState="transferencia_incompleta_"+String(total)+"_de_"+String(length)+"_err_"+String(Update.getError());
+  Update.abort();fwHttp.end();
   tmBusy=false;
-  if(rc==HTTP_UPDATE_FAILED)tmState="error_flash_"+String(ESPhttpUpdate.getLastError());
-  else if(rc==HTTP_UPDATE_NO_UPDATES)tmState="sin_cambios";
+
 }
 static void tmTick(){
   if(tmBusy||WiFi.status()!=WL_CONNECTED||mode==AUTO||waveSearch)return;
