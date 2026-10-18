@@ -94,7 +94,7 @@ static void egDefaultConfig(){
 }
 static void egSaveConfigMigration(){egCfg.crc=egConfigHash(&egCfg);EEPROM.put(0,egCfg);EEPROM.commit();}
 static void egLoadConfig(){
-  EEPROM.begin(sizeof(EgConfig)); EEPROM.get(0,egCfg);
+  EEPROM.begin(4096); EEPROM.get(0,egCfg);
   if(egCfg.magic!=0x45473234UL||egCfg.count<2||egCfg.count>EG_MAX_POINTS||
      egCfg.crc!=egConfigHash(&egCfg)){
     EgConfigLegacy old;EEPROM.get(0,old);
@@ -388,9 +388,13 @@ label{display:block;margin:14px 0 7px}.selector{display:grid;grid-template-colum
 <div class="grid"><div class="kv">ON actual<b id="currentOn">—</b></div><div class="kv">OFF actual<b id="currentOff">—</b></div></div>
 <div class="progress"><div id="bar"></div></div><div class="sub" id="progress">—</div><p class="sub" id="remaining">—</p></div></section>
 <div class="card"><div class="row"><button class="stop" onclick="cmd('/api/stop')">■ Fijar paquete 94</button></div><p class="note">IMPORTANTE: 0x94/0x9C son estados RF observados, no comandos de parada/arranque físico validados. «Fijar 94» no garantiza detener la bomba. Usa el interruptor de alimentación para una parada de emergencia.</p></div>
+<div class="card"><h3>Actualizaciones Techman Reef</h3><p class="sub" id="otaStatus">Consultando...</p><div class="row"><button onclick="tmOTA('check')">Buscar actualización</button><button onclick="tmOTA('install')">Instalar actualización</button></div><p class="note">Instalar interrumpe temporalmente el control RF y reinicia el dispositivo.</p></div>
 <div class="card"><div>Estado: <b id="state">Conectando…</b></div><div>Radio: <b id="radio">—</b></div><div>Paquete: <b id="packet">—</b></div><div>TX ACK: <b id="ok">0</b> · TX sin ACK: <b id="fail">0</b></div></div>
 <p class="note">ACK significa recepción RF, no confirmación de movimiento. La resonancia se identifica observando la ola; no hay sensor de amplitud.</p>
 </main><script>
+async function tmOTA(action){if(action==='install'&&!confirm('Se interrumpira el control RF y el dispositivo se reiniciara. Continuar?'))return;try{const r=await fetch('/api/ota/'+action,{method:'POST'});if(!r.ok)throw Error(await r.text());document.getElementById('otaStatus').textContent='Solicitud aceptada';}catch(e){alert(e.message)}}
+async function tmStatus(){try{const r=await fetch('/api/ota/status');if(!r.ok)return;const d=await r.json();document.getElementById('otaStatus').textContent='Instalada: '+d.version+' · Estado: '+d.state+(d.available?' · Disponible: '+d.available:'');}catch(e){}}
+setTimeout(tmStatus,1200);setInterval(tmStatus,5000);
 const $=id=>document.getElementById(id),fmt=v=>(v/1000).toFixed(3).replace('.',',')+' s';
 let mStep=1,aStep=1,dirtyManual=false,dirtyAuto=false,tabName='auto',queue=Promise.resolve(),rfMode=5;
 const clamp=v=>Math.max(200,Math.min(1500,Math.round(v)));
@@ -746,9 +750,13 @@ syncClock().then(()=>refresh());loadSchedule();setInterval(refresh,4000);setInte
 </script></body></html>
 )EGHTML";
 
+#include "techman_ota.h"
+
 void setup() {
   Serial.begin(115200); delay(300);
   egLoadConfig();
+  tmCredentials();
+  configTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "pool.ntp.org", "time.google.com");
   setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();
   pinMode(SONAR_TRIG, OUTPUT); digitalWrite(SONAR_TRIG, LOW);
   pinMode(SONAR_ECHO, INPUT);
@@ -893,6 +901,7 @@ void setup() {
     Serial.println("Arduino OTA listo: jebao-wavebox-v2");
   }
 
+  tmRoutes();
   // Browser-based OTA: authenticate independently; requires compiled ESP8266 .bin.
   httpUpdater.setup(&server, "/update", WEB_USER, WEB_PASS);
 
@@ -943,6 +952,7 @@ void setup() {
 
 void loop() {
   dnsServer.processNextRequest(); server.handleClient();
+  tmTick();
   // El portal AP y la actualizacion HTTP permanecen accesibles incluso sin red domestica.
   const bool connected=(WiFi.status()==WL_CONNECTED);
   if(connected && !arduinoOtaStarted){
