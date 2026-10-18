@@ -7,3 +7,6 @@
 secrets.h
 **/secrets.h
 .DS_Store
+
+include/techman_config_local.h
+include/techman_version.h
