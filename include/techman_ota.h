@@ -177,7 +177,7 @@ static void tmRunCheck(bool install){
     tmState="flash_begin_"+String(Update.getError());fwHttp.end();tmBusy=false;return;
   }
   if(Update.write(magic,4)!=4){
-    tmState="flash_cabecera_"+String(Update.getError());Update.abort();fwHttp.end();tmBusy=false;return;
+    tmState="flash_cabecera_"+String(Update.getError());Update.end(false);fwHttp.end();tmBusy=false;return;
   }
   size_t total=4;
   uint8_t buf[512];
@@ -207,7 +207,7 @@ static void tmRunCheck(bool install){
     Serial.flush();ESP.restart();return;
   }
   tmState="transferencia_incompleta_"+String(total)+"_de_"+String(length)+"_err_"+String(Update.getError());
-  Update.abort();fwHttp.end();
+  Update.end(false);fwHttp.end();
   tmBusy=false;
 
 }
