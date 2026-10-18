@@ -1,0 +1,9 @@
+.pio/
+.vscode/
+*.log
+.env
+.env.*
+!.env.example
+secrets.h
+**/secrets.h
+.DS_Store
