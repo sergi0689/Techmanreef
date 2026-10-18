@@ -63,6 +63,8 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 struct TmSavedCredentials { uint32_t magic; char ssid[33];char wifi[65];char web[65];char ap[65];uint32_t crc; };
 static TmSavedCredentials tmSaved;
 static String tmState="no_comprobado",tmAvailable="";
+static int tmHttpCode=0;
+static String tmDiagnostic="pendiente";
 static bool tmRequested=false,tmInstall=false,tmBusy=false;
 static uint32_t tmLast=0;
 static uint32_t tmCrc(const TmSavedCredentials &v){const uint8_t*p=(const uint8_t*)&v;uint32_t h=2166136261UL;for(size_t i=0;i<sizeof(v)-4;i++){h^=p[i];h*=16777619UL;}return h;}
@@ -93,9 +95,15 @@ static void tmRunCheck(bool install){
   BearSSL::X509List roots(tmRoots);BearSSL::WiFiClientSecure c;c.setTrustAnchors(&roots);
   c.setTimeout(12000);
   HTTPClient http;http.setTimeout(12000);
-  if(!http.begin(c,base+"/manifest.txt")){tmState="conexion_manifest";return;}
-  int status=http.GET();String ver=status==200?http.getString():"";
+  if(!http.begin(c,base+"/manifest.txt")){tmState="conexion_manifest";tmDiagnostic="http.begin fallo";Serial.println("[OTA] "+tmDiagnostic);return;}
+  int status=http.GET();tmHttpCode=status;
+  String ver=status==200?http.getString():"";
+  String error=status<0?http.errorToString(status):"";
+  char tlsDetail[150]={0};
+  int sslCode=c.getLastSSLError(tlsDetail,sizeof(tlsDetail));
   http.end();ver.trim();
+  tmDiagnostic="HTTP="+String(status)+" ssl="+String(sslCode)+" "+String(tlsDetail)+" httpErr="+error+" length="+String(ver.length());
+  Serial.println("[OTA] "+tmDiagnostic);
   if(!tmIsVersion(ver)){tmState="manifest_invalido_http_"+String(status);return;}
   if(ver==String(TECHMAN_FW_VERSION)){tmAvailable="";tmState="actualizado";return;}
   tmAvailable=ver;
@@ -116,7 +124,7 @@ static void tmTick(){
 static void tmRoutes(){
   server.on("/api/ota/status",HTTP_GET,[](){
     if(!authorized())return;
-    server.send(200,"application/json",String("{\"version\":\"")+TECHMAN_FW_VERSION+"\",\"available\":\""+tmAvailable+"\",\"state\":\""+tmState+"\"}");
+    server.send(200,"application/json",String("{\"version\":\"")+TECHMAN_FW_VERSION+"\",\"available\":\""+tmAvailable+"\",\"state\":\""+tmState+"\",\"httpCode\":"+String(tmHttpCode)+",\"diagnostic\":\""+tmDiagnostic+"\"}");
   });
   server.on("/api/ota/check",HTTP_POST,[](){if(!authorized())return;tmRequested=true;server.send(202,"application/json","{\"queued\":true}");});
   server.on("/api/ota/install",HTTP_POST,[](){if(!authorized())return;if(mode==AUTO||waveSearch){server.send(409,"text/plain","Deten el barrido primero");return;}tmInstall=true;server.send(202,"application/json","{\"queued\":true}");});
