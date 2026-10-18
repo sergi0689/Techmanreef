@@ -2,6 +2,9 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 #include <WiFiClientSecureBearSSL.h>
+#if __has_include("techman_version.h")
+#include "techman_version.h"
+#endif
 #ifndef TECHMAN_FW_VERSION
 #define TECHMAN_FW_VERSION "bootstrap-1"
 #endif
