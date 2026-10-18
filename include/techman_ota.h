@@ -166,6 +166,16 @@ static void tmRunCheck(bool install){
   }
   const size_t length=(size_t)fwHttp.getSize();
   WiFiClient *stream=fwHttp.getStreamPtr();
+  if(stream==nullptr){
+    tmState="stream_nulo";Serial.println("[TECHMAN OTA] ERROR stream nulo");
+    fwHttp.end();tmBusy=false;return;
+  }
+  if(ESP.getMaxFreeBlockSize()<8000){
+    tmState="ram_insuficiente_descarga";
+    Serial.printf("[TECHMAN OTA] Descarga abortada antes de flash: heap=%u max=%u\\n",ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
+    fwHttp.end();tmBusy=false;return;
+  }
+  Serial.println("[TECHMAN OTA] Leyendo cabecera firmware...");
   uint8_t magic[4]={0};
   size_t got=stream->readBytes((char*)magic,4);
   Serial.printf("[TECHMAN OTA] Cabecera: recibidos=%u hex=%02X %02X %02X %02X\\n",
