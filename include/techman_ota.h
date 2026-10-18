@@ -86,6 +86,7 @@ static void tmCredentials(){
 }
 static bool tmIsVersion(const String&s){if(s.length()!=12)return false;for(unsigned i=0;i<s.length();i++)if(!isxdigit((unsigned char)s[i]))return false;return true;}
 static void tmRunCheck(bool install){
+  Serial.printf("[TECHMAN OTA] Heap antes TLS=%u maxBlock=%u fragmentation=%u%%\n",ESP.getFreeHeap(),ESP.getMaxFreeBlockSize(),ESP.getHeapFragmentation());
   tmRequested=tmInstall=false;
   if(WiFi.status()!=WL_CONNECTED){tmState="sin_wifi";return;}
   if(time(nullptr)<1735689600L){tmState="sin_hora";return;}
@@ -93,9 +94,10 @@ static void tmRunCheck(bool install){
   String base=TECHMAN_OTA_BASE_URL;
   if(!base.startsWith("https://")){tmState="sin_url";return;}
   BearSSL::X509List roots(tmRoots);BearSSL::WiFiClientSecure c;c.setTrustAnchors(&roots);
+  c.setBufferSizes(1024,1024);
   c.setTimeout(12000);
   HTTPClient http;http.setTimeout(12000);
-  if(!http.begin(c,base+"/manifest.txt")){tmState="conexion_manifest";tmDiagnostic="http.begin fallo";Serial.println("[OTA] "+tmDiagnostic);return;}
+  if(!http.begin(c,base+"/manifest.txt")){tmState="conexion_manifest";tmDiagnostic="http.begin fallo";Serial.println("[TECHMAN OTA] "+tmDiagnostic);return;}
   int status=http.GET();tmHttpCode=status;
   String ver=status==200?http.getString():"";
   String error=status<0?http.errorToString(status):"";
@@ -110,6 +112,7 @@ static void tmRunCheck(bool install){
   if(!install){tmState="disponible";return;}
   tmState="instalando";tmBusy=true;
   BearSSL::X509List fwRoots(tmRoots);BearSSL::WiFiClientSecure fw;fw.setTrustAnchors(&fwRoots);
+  fw.setBufferSizes(1024,1024);
   ESPhttpUpdate.rebootOnUpdate(true);
   t_httpUpdate_return rc=ESPhttpUpdate.update(fw,base+"/firmware.bin");
   tmBusy=false;
