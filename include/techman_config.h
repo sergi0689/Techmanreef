@@ -16,3 +16,7 @@
 #ifndef TECHMAN_AP_PASS
 #define TECHMAN_AP_PASS "CHANGE_ME_BEFORE_USE"
 #endif
+
+#ifndef TECHMAN_OTA_BASE_URL
+#define TECHMAN_OTA_BASE_URL "https://raw.githubusercontent.com/sergi0689/Techmanreef/ota"
+#endif
