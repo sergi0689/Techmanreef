@@ -93,6 +93,11 @@ static void tmRunCheck(bool install){
   if(ESP.getFreeSketchSpace()<420000){tmState="sin_espacio";return;}
   String base=TECHMAN_OTA_BASE_URL;
   if(!base.startsWith("https://")){tmState="sin_url";return;}
+  if(install && (!tmIsVersion(tmAvailable) || tmAvailable==String(TECHMAN_FW_VERSION))) {
+    tmState="buscar_primero";Serial.println("[TECHMAN OTA] Pulsa Buscar antes de instalar");return;
+  }
+  // Al instalar NO volver a consultar el manifiesto, que fragmenta el heap.
+  if(!install){
   // Mantener la conexion TLS del manifiesto en su propio ambito.
   // El cliente HTTPS y su memoria DEBEN liberarse ANTES de iniciar otra conexion.
   String ver;
@@ -126,13 +131,15 @@ static void tmRunCheck(bool install){
   if(!tmIsVersion(ver)){tmState="manifest_invalido_http_"+String(tmHttpCode);return;}
   if(ver==String(TECHMAN_FW_VERSION)){tmAvailable="";tmState="actualizado";return;}
   tmAvailable=ver;
-  if(!install){tmState="disponible";return;}
+  tmState="disponible";return;
+  } // final de consulta de manifiesto
   // Evitar OOM conocido antes de crear el segundo cliente TLS.
-  if(ESP.getMaxFreeBlockSize()<16000){
+  if(ESP.getMaxFreeBlockSize()<14000){
     tmState="ram_insuficiente_ota";
     Serial.println("[TECHMAN OTA] Instalacion cancelada: RAM contigua insuficiente");
     return;
   }
+  Serial.printf("[TECHMAN OTA] Descarga directa heap=%u max=%u\n", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
   tmState="instalando";
   tmBusy=true;
   Serial.printf("[TECHMAN OTA] Iniciando firmware: heap=%u maxBlock=%u\n",ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
