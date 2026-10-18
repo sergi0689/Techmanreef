@@ -24,9 +24,19 @@ jobs:
         run: pip install platformio
       - name: Compile ESP8266 NodeMCU
         run: pio run -e nodemcuv2
-      - name: Publish binary artifact (private)
+      - name: Validate firmware binary
+        run: |
+          test -s .pio/build/nodemcuv2/firmware.bin
+          python - <<'PY'
+          from pathlib import Path
+          p=Path(".pio/build/nodemcuv2/firmware.bin")
+          print(f"ESP8266 binary: {p.stat().st_size} bytes")
+          assert p.stat().st_size > 60000, "Firmware suspiciously small"
+          PY
+      - name: Publish compiled binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: techmanreef-esp8266-firmware
           path: .pio/build/nodemcuv2/firmware.bin
+          if-no-files-found: error
           retention-days: 30
