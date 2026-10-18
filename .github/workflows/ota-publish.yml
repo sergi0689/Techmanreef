@@ -1,0 +1,54 @@
+name: ESP8266 OTA - publicación manual segura
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Evitar publicar firmware de prueba
+        run: |
+          grep -q "RF24 radio" src/main.cpp || { echo "No es el firmware real"; exit 1; }
+          test "$(wc -l < src/main.cpp)" -gt 1000 || { echo "Firmware incompleto"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install platformio
+      - name: Compilar
+        env:
+          OTA_BASE_URL: ${{ vars.OTA_BASE_URL }}
+        run: |
+          test -n "$OTA_BASE_URL"
+          SHA12="${GITHUB_SHA:0:12}"
+          export PLATFORMIO_BUILD_FLAGS="-DTECHMAN_FW_VERSION=\"$SHA12\" -DTECHMAN_OTA_BASE_URL=\"$OTA_BASE_URL\""
+          pio run -e nodemcuv2
+          mkdir -p release
+          cp .pio/build/nodemcuv2/firmware.bin release/firmware.bin
+          printf '%s\n' "$SHA12" > release/manifest.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: techmanreef-esp8266-ota
+          path: release/
+      - name: Publicar FTPS
+        env:
+          FTPS_HOST: ${{ secrets.FTPS_HOST }}
+          FTPS_USER: ${{ secrets.FTPS_USER }}
+          FTPS_PASS: ${{ secrets.FTPS_PASS }}
+          FTPS_DIR: ${{ vars.FTPS_DIR }}
+        run: |
+          test -n "$FTPS_HOST" && test -n "$FTPS_USER" && test -n "$FTPS_PASS" && test -n "$FTPS_DIR"
+          python - <<'PYFTPS'
+          import os,ssl,ftplib,pathlib
+          ftp=ftplib.FTP_TLS(context=ssl.create_default_context(),timeout=40)
+          ftp.connect(os.environ['FTPS_HOST'],21)
+          ftp.login(os.environ['FTPS_USER'],os.environ['FTPS_PASS'])
+          ftp.prot_p()
+          for part in os.environ['FTPS_DIR'].strip('/').split('/'):
+              try: ftp.cwd(part)
+              except ftplib.error_perm: ftp.mkd(part);ftp.cwd(part)
+          for name in ('firmware.bin','manifest.txt'):
+              with (pathlib.Path('release')/name).open('rb') as f: ftp.storbinary('STOR '+name,f)
+          ftp.quit()
+          PYFTPS
