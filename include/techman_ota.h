@@ -149,7 +149,21 @@ static void tmRunCheck(bool install){
   fw.setBufferSizes(1024,1024);
   fw.setTimeout(20000);
   ESPhttpUpdate.rebootOnUpdate(true);
+  ESPhttpUpdate.closeConnectionsOnUpdate(false);
+  ESPhttpUpdate.setClientTimeout(30000);
+  ESPhttpUpdate.onStart([](){Serial.println("[TECHMAN OTA] Flash iniciada");});
+  ESPhttpUpdate.onProgress([](int done,int total){
+    static int last=-1;
+    int percent=total>0?(100*done/total):0;
+    if(percent/10!=last){last=percent/10;Serial.printf("[TECHMAN OTA] Descarga %d/%d bytes (%d%%)\\n",done,total,percent);}
+  });
+  ESPhttpUpdate.onError([](int err){
+    Serial.printf("[TECHMAN OTA] Error descargando: %d (%s) heap=%u bloque=%u\\n",
+      err,ESPhttpUpdate.getLastErrorString().c_str(),ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
+  });
   t_httpUpdate_return rc=ESPhttpUpdate.update(fw,base+"/firmware.bin");
+  Serial.printf("[TECHMAN OTA] Resultado OTA=%d error=%d detalle=%s\\n",
+    (int)rc,ESPhttpUpdate.getLastError(),ESPhttpUpdate.getLastErrorString().c_str());
   tmBusy=false;
   if(rc==HTTP_UPDATE_FAILED)tmState="error_flash_"+String(ESPhttpUpdate.getLastError());
   else if(rc==HTTP_UPDATE_NO_UPDATES)tmState="sin_cambios";
