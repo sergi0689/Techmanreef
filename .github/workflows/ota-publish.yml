@@ -22,7 +22,7 @@ jobs:
         run: |
           grep -q 'RF24 radio' src/main.cpp
           test "$(wc -l < src/main.cpp)" -gt 1000
-          grep -q 'TECHMAN_OTA_BASE_URL' src/main.cpp || { echo 'El cliente OTA GitHub aun no esta integrado; no publicar.'; exit 1; }
+          grep -q 'TECHMAN_OTA_BASE_URL' include/techman_config.h || { echo 'El cliente OTA GitHub aun no esta integrado; no publicar.'; exit 1; }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
